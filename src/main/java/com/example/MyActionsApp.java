@@ -111,6 +111,8 @@ public class MyActionsApp extends DialogflowApp {
         ConstantsKt.PERMISSION_DEVICE_PRECISE_LOCATION
         : ConstantsKt.PERMISSION_DEVICE_COARSE_LOCATION;
 
+    response.getConversationData().put(DATA_KEY_REQUESTED_PERMISSION, requestedPermission);
+
     if (!request.getUserStorage().containsKey(STORAGE_KEY_LOCATION)) {
       Permission permission = new Permission()
           .setContext(formatResponse("permission_reason"))
@@ -203,7 +205,7 @@ public class MyActionsApp extends DialogflowApp {
     AddressComponent[] components = results[0].addressComponents;
     for (AddressComponent component : components) {
       for (AddressComponentType type : component.types) {
-        if (type.equals("locality")) {
+        if (type.toString().equals("locality")) {
           return component.longName;
         }
       }

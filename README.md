@@ -1,4 +1,4 @@
-# Actions on Google: Name Psychic Sample
+# Actions on Google: Name Psychic Sample using Java
 
 The Psychic in this sample can guess interesting secrets about you, like your
 name and where you are. This sample introduces permissions requests for user
