@@ -1,4 +1,7 @@
-.gradle
+gradle/
+gradlew
+gradlew.bat
+.gradle/
 .idea
 *.iml
 build
