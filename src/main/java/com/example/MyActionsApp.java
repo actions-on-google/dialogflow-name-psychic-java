@@ -18,7 +18,6 @@ package com.example;
 
 import com.google.actions.api.ActionRequest;
 import com.google.actions.api.ActionResponse;
-import com.google.actions.api.Capability;
 import com.google.actions.api.ConstantsKt;
 import com.google.actions.api.DialogflowApp;
 import com.google.actions.api.ForIntent;
@@ -27,6 +26,7 @@ import com.google.actions.api.response.helperintent.NewSurface;
 import com.google.actions.api.response.helperintent.Permission;
 import com.google.api.services.actions_fulfillment.v2.model.Image;
 import com.google.api.services.actions_fulfillment.v2.model.Surface;
+import com.google.api.services.actions_fulfillment.v2.model.Capability;
 
 import java.util.Collections;
 import java.util.Map;
@@ -60,7 +60,16 @@ public class MyActionsApp extends DialogflowApp {
     // Uncomment above to delete the cached permissions on each request
     // to force the app to request new permissions from the user
 
-    response.add(formatResponse("greet_user"));
+    if (request.getUser().getUserVerificationStatus().equals("VERIFIED")) {
+      response.add(formatResponse("greet_user"));
+    } else {
+      Permission permission =
+          new Permission()
+              .setContext(formatResponse("permission_reason"))
+              .setPermissions(new String[] {ConstantsKt.PERMISSION_NAME});
+      response.add("PLACEHOLDER_FOR_PERMISSION");
+      response.add(permission);
+    }
     return response.build();
   }
 
@@ -77,11 +86,11 @@ public class MyActionsApp extends DialogflowApp {
 
     String requestedPermission = ConstantsKt.PERMISSION_NAME;
 
-    response.getConversationData().put(DATA_KEY_REQUESTED_PERMISSION, requestedPermission);
+    saveUserData(request, response, DATA_KEY_REQUESTED_PERMISSION, requestedPermission);
 
     String storageKey = STORAGE_KEY_NAME;
 
-    if (!request.getUserStorage().containsKey(storageKey)) {
+    if (!getUserData(request).containsKey(storageKey)) {
       Permission permission =
           new Permission()
               .setContext(formatResponse("permission_reason"))
@@ -89,7 +98,7 @@ public class MyActionsApp extends DialogflowApp {
       response.add("PLACEHOLDER_FOR_PERMISSION");
       response.add(permission);
     } else {
-      String name = (String) request.getUserStorage().get(storageKey);
+      String name = (String) getUserData(request).get(storageKey);
       response.add(formatResponse("say_name", name));
       response.endConversation();
     }
@@ -105,9 +114,9 @@ public class MyActionsApp extends DialogflowApp {
     // ['DEVICE_PRECISE_LOCATION'](https://developers.google.com/actions/assistant/helpers#user_information) can be used for geolocation.
     String requestedPermission = ConstantsKt.PERMISSION_DEVICE_COARSE_LOCATION;
 
-    response.getConversationData().put(DATA_KEY_REQUESTED_PERMISSION, requestedPermission);
+    saveUserData(request, response, DATA_KEY_REQUESTED_PERMISSION, requestedPermission);
 
-    if (!request.getUserStorage().containsKey(STORAGE_KEY_LOCATION)) {
+    if (!getUserData(request).containsKey(STORAGE_KEY_LOCATION)) {
       Permission permission =
           new Permission()
               .setContext(formatResponse("permission_reason"))
@@ -133,20 +142,18 @@ public class MyActionsApp extends DialogflowApp {
       return response.build();
     }
 
-    Map<String, Object> storage = response.getUserStorage();
-
     String requestedPermission =
-        (String) request.getConversationData().get(DATA_KEY_REQUESTED_PERMISSION);
+        (String) getUserData(request).get(DATA_KEY_REQUESTED_PERMISSION);
     if (requestedPermission.equals(ConstantsKt.PERMISSION_NAME)) {
       String name = request.getUser().getProfile().getDisplayName();
-      storage.put(STORAGE_KEY_NAME, name);
+      saveUserData(request, response, STORAGE_KEY_NAME, name);
       response.add(formatResponse("say_name", name));
       response.endConversation();
       return response.build();
     }
     if (requestedPermission.equals(ConstantsKt.PERMISSION_DEVICE_COARSE_LOCATION)) {
       String location = request.getDevice().getLocation().getCity();
-      storage.put(STORAGE_KEY_LOCATION, location);
+      saveUserData(request, response, STORAGE_KEY_LOCATION, location);
       showLocationOnScreen(request, response);
       return response.build();
     }
@@ -160,7 +167,7 @@ public class MyActionsApp extends DialogflowApp {
   @ForIntent("new_surface")
   public ActionResponse newSurface(ActionRequest request) {
     ResponseBuilder response = getResponseBuilder(request);
-    sayLocation(response, (String) request.getUserStorage().get(STORAGE_KEY_LOCATION));
+    sayLocation(response, (String) getUserData(request).get(STORAGE_KEY_LOCATION));
     return response.build();
   }
 
@@ -169,16 +176,18 @@ public class MyActionsApp extends DialogflowApp {
    * asks to transfer dialog to a screen device. Reads location from userStorage.
    */
   private void showLocationOnScreen(ActionRequest request, ResponseBuilder response) {
-    String capability = Capability.SCREEN_OUTPUT.getValue();
+    String screen = com.google.actions.api.Capability.SCREEN_OUTPUT.getValue();
     boolean availableHasCapability = false;
     for (Surface surface : request.getAvailableSurfaces()) {
-      if (surface.getCapabilities().contains(capability)) {
-        availableHasCapability = true;
-        break;
+      for (Capability capability : surface.getCapabilities()) {
+        if (capability.getName().equals(screen)) {
+          availableHasCapability = true;
+          break;
+        }
       }
     }
-    if (request.hasCapability(capability) || !availableHasCapability) {
-      String location = (String) request.getUserStorage().get(STORAGE_KEY_LOCATION);
+    if (request.hasCapability(screen) || !availableHasCapability) {
+      String location = (String) getUserData(request).get(STORAGE_KEY_LOCATION);
       sayLocation(response, location);
       return;
     }
@@ -187,7 +196,7 @@ public class MyActionsApp extends DialogflowApp {
         new NewSurface()
             .setContext(formatResponse("new_surface_context"))
             .setNotificationTitle(formatResponse("notification_text"))
-            .setCapabilities(Collections.singletonList(capability));
+            .setCapabilities(Collections.singletonList(screen));
     response.add("PLACEHOLDER_FOR_NEW_SURFACE");
     response.add(newSurface);
   }
@@ -204,6 +213,24 @@ public class MyActionsApp extends DialogflowApp {
     response.add(image);
     response.endConversation();
   }
+
+  private void saveUserData(ActionRequest request,
+    ResponseBuilder response, String key, Object value) {
+      // Depending on user verification status, save data either to dialog session
+      // or cross-session storage. Users must be verified to use cross-session storage,
+      // but it provides ideal UX.
+      // https://developers.google.com/actions/assistant/guest-users
+      if (request.getUser().getUserVerificationStatus().equals("VERIFIED")) {
+        response.getUserStorage().put(key, value);
+      } else {
+        response.getConversationData().put(key, value);
+      }
+  }
+
+  private Map<String, Object> getUserData(ActionRequest request) {
+    return request.getUser().getUserVerificationStatus().equals("VERIFIED") ?
+      request.getUserStorage() : request.getConversationData();
+}
 
   private String retrieveMapsKey() {
     ResourceBundle bundle = ResourceBundle.getBundle("config");
