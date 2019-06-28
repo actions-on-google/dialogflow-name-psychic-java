@@ -4,6 +4,7 @@ This sample demonstrates Actions on Google features for use on Google Assistant 
 
 ### Enable Billing
 **Required for running this sample**
+
 This sample uses Firebase Cloud Functions to make an HTTP request to Google Maps Static API. If you plan to run the sample, you will need to temporarily upgrade to a Firebase plan that allows for outbound networking, such as the [Blaze Plan](https://firebase.google.com/pricing/), also called Pay as you go.
 
 ### Setup Instructions
