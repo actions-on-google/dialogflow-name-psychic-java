@@ -2,6 +2,9 @@
 
 This sample demonstrates Actions on Google features for use on Google Assistant including permission requests for [user information](https://developers.google.com/actions/assistant/helpers#user_information), [surface transfer capabilities](https://developers.google.com/actions/assistant/surface-capabilities#multi-surface_conversations), user storage, SSML, unrecognized deep link fallbacks, and Google Maps Static API -- -- using the [Java client library](https://github.com/actions-on-google/actions-on-google-java) and deployed on [App Engine](https://cloud.google.com/appengine/docs/standard/java/quickstart).
 
+Note that if the user is not [verified](https://developers.google.com/actions/assistant/guest-users), their information will
+never be saved across conversations and they will encounter a guest flow (requesting permission) each time.
+
 ### Enable Billing
 **Required for running this sample**
 
